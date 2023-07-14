@@ -338,6 +338,73 @@ impl Iterator for ListIterator {
     }
 }
 
+/// `Map<Key, V>` wraps an Ocaml `('key, 'value, 'comparator) Map.t` without converting it to Rust, this introduces no additional overhead compared to a `Value` type
+#[derive(Clone, PartialEq, Eq)]
+#[repr(transparent)]
+pub struct Map<K: ToValue + FromValue, V: ToValue + FromValue>(Value, PhantomData<(K, V)>);
+
+impl<K: ToValue + FromValue, V: ToValue + FromValue> Map<K, V> {
+    /// List iterator
+    #[allow(clippy::should_implement_trait)]
+    pub fn into_iter(self) -> MapIterator {
+        MapIterator { inner: self.0 }
+    }
+}
+
+unsafe impl<K: ToValue + FromValue, V: ToValue + FromValue> ToValue for Map<K, V> {
+    fn to_value(&self, _rt: &Runtime) -> Value {
+        self.0.clone()
+    }
+}
+
+unsafe impl<K: ToValue + FromValue, V: ToValue + FromValue> FromValue for Map<K, V> {
+    fn from_value(value: Value) -> Self {
+        Map(value, PhantomData)
+    }
+}
+
+#[cfg(not(feature = "no-std"))]
+impl<K: ToValue + FromValue + std::hash::Hash + std::cmp::Eq, V: ToValue + FromValue> Map<K, V> {
+    #[allow(dead_code)]
+    pub fn into_hash_map(self) -> std::collections::HashMap<K, V> {
+        self.into_iter()
+            .map(|(k, v)| (K::from_value(k), V::from_value(v)))
+            .collect()
+    }
+}
+
+impl<K: ToValue + FromValue, V: ToValue + FromValue> IntoIterator for Map<K, V> {
+    type Item = (Value, Value);
+    type IntoIter = MapIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Map::into_iter(self)
+    }
+}
+
+/// List iterator.
+pub struct MapIterator {
+    #[allow(dead_code)]
+    inner: Value,
+}
+
+impl Iterator for MapIterator {
+    type Item = (Value, Value);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        todo!()
+        /* if self.inner.raw().0 != sys::UNIT {
+            unsafe {
+                let val = self.inner.field(0);
+                self.inner = self.inner.field(1);
+                Some(val)
+            }
+        } else {
+            None
+        } */
+    }
+}
+
 /// `bigarray` contains wrappers for OCaml `Bigarray` values. These types can be used to transfer arrays of numbers between Rust
 /// and OCaml directly without the allocation overhead of an `array` or `list`
 pub mod bigarray {
